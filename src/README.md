@@ -6,6 +6,8 @@ A super simple FastAPI application that allows students to view and sign up for 
 
 - View all available extracurricular activities
 - Sign up for activities
+- View active announcements
+- Manage announcements (signed-in users only)
 
 ## Getting Started
 
@@ -31,6 +33,16 @@ A super simple FastAPI application that allows students to view and sign up for 
 | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
 | GET    | `/activities`                                                     | Get all activities with their details and current participant count |
 | POST   | `/activities/{activity_name}/signup?email=student@mergington.edu` | Sign up for an activity                                             |
+| GET    | `/announcements`                                                  | Get active announcements for public display                         |
+| GET    | `/announcements/manage?teacher_username=<username>`              | Get all announcements for management                                |
+| POST   | `/announcements/manage?teacher_username=<username>`              | Create a new announcement                                           |
+| PUT    | `/announcements/manage/{announcement_id}?teacher_username=<username>` | Update an existing announcement                                 |
+| DELETE | `/announcements/manage/{announcement_id}?teacher_username=<username>` | Delete an announcement                                          |
+
+Announcement rules:
+- `expiration_date` is required (`YYYY-MM-DD`)
+- `start_date` is optional (`YYYY-MM-DD`)
+- If provided, `start_date` must be on or before `expiration_date`
 
 ## Data Model
 
@@ -47,4 +59,5 @@ The application uses a simple data model with meaningful identifiers:
    - Name
    - Grade level
 
-All data is stored in memory, which means data will be reset when the server restarts.
+Data is stored in MongoDB. The application seeds sample activities, teacher accounts,
+and an example announcement when the database is empty.
