@@ -5,13 +5,31 @@ Endpoints for the High School Management System API
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone
 
-from ..database import activities_collection, teachers_collection
+from ..database import activities_collection, sessions_collection
 
 router = APIRouter(
     prefix="/activities",
     tags=["activities"]
 )
+
+
+def _validate_signed_in_user(session_token: Optional[str]) -> None:
+    """Verify the session token is valid and not expired."""
+    if not session_token:
+        raise HTTPException(
+            status_code=401, detail="Authentication required for this action")
+
+    session = sessions_collection.find_one({"_id": session_token})
+    if not session:
+        raise HTTPException(
+            status_code=401, detail="Invalid or expired session")
+
+    if datetime.now(timezone.utc) > session["expires_at"].replace(tzinfo=timezone.utc):
+        sessions_collection.delete_one({"_id": session_token})
+        raise HTTPException(
+            status_code=401, detail="Session expired")
 
 
 @router.get("", response_model=Dict[str, Any])
@@ -67,17 +85,9 @@ def get_available_days() -> List[str]:
 
 
 @router.post("/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str, teacher_username: Optional[str] = Query(None)):
+def signup_for_activity(activity_name: str, email: str, session_token: Optional[str] = Query(None)):
     """Sign up a student for an activity - requires teacher authentication"""
-    # Check teacher authentication
-    if not teacher_username:
-        raise HTTPException(
-            status_code=401, detail="Authentication required for this action")
-
-    teacher = teachers_collection.find_one({"_id": teacher_username})
-    if not teacher:
-        raise HTTPException(
-            status_code=401, detail="Invalid teacher credentials")
+    _validate_signed_in_user(session_token)
 
     # Get the activity
     activity = activities_collection.find_one({"_id": activity_name})
@@ -103,17 +113,9 @@ def signup_for_activity(activity_name: str, email: str, teacher_username: Option
 
 
 @router.post("/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str, teacher_username: Optional[str] = Query(None)):
+def unregister_from_activity(activity_name: str, email: str, session_token: Optional[str] = Query(None)):
     """Remove a student from an activity - requires teacher authentication"""
-    # Check teacher authentication
-    if not teacher_username:
-        raise HTTPException(
-            status_code=401, detail="Authentication required for this action")
-
-    teacher = teachers_collection.find_one({"_id": teacher_username})
-    if not teacher:
-        raise HTTPException(
-            status_code=401, detail="Invalid teacher credentials")
+    _validate_signed_in_user(session_token)
 
     # Get the activity
     activity = activities_collection.find_one({"_id": activity_name})

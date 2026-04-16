@@ -135,8 +135,12 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         currentUser = JSON.parse(savedUser);
         updateAuthUI();
-        // Verify the stored user with the server
-        validateUserSession(currentUser.username);
+        // Verify the stored session token with the server
+        if (currentUser.token) {
+          validateUserSession(currentUser.token);
+        } else {
+          logout(); // No token stored, clear invalid data
+        }
       } catch (error) {
         console.error("Error parsing saved user", error);
         logout(); // Clear invalid data
@@ -148,10 +152,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Validate user session with the server
-  async function validateUserSession(username) {
+  async function validateUserSession(token) {
     try {
       const response = await fetch(
-        `/auth/check-session?username=${encodeURIComponent(username)}`
+        `/auth/check-session?session_token=${encodeURIComponent(token)}`
       );
 
       if (!response.ok) {
@@ -237,6 +241,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Logout function
   function logout() {
+    if (currentUser && currentUser.token) {
+      fetch(`/auth/logout?session_token=${encodeURIComponent(currentUser.token)}`, {
+        method: "POST",
+      }).catch((err) => console.error("Error invalidating session:", err));
+    }
     currentUser = null;
     localStorage.removeItem("currentUser");
     resetAnnouncementForm();
@@ -443,8 +452,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `/announcements/manage?teacher_username=${encodeURIComponent(
-          currentUser.username
+        `/announcements/manage?session_token=${encodeURIComponent(
+          currentUser.token
         )}`
       );
       const announcements = await response.json();
@@ -491,7 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `${endpoint}?teacher_username=${encodeURIComponent(currentUser.username)}`,
+        `${endpoint}?session_token=${encodeURIComponent(currentUser.token)}`,
         {
           method,
           headers: {
@@ -534,7 +543,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const response = await fetch(
           `/announcements/manage/${encodeURIComponent(
             announcementId
-          )}?teacher_username=${encodeURIComponent(currentUser.username)}`,
+          )}?session_token=${encodeURIComponent(currentUser.token)}`,
           {
             method: "DELETE",
           }
@@ -1112,7 +1121,7 @@ document.addEventListener("DOMContentLoaded", () => {
               activity
             )}/unregister?email=${encodeURIComponent(
               email
-            )}&teacher_username=${encodeURIComponent(currentUser.username)}`,
+            )}&session_token=${encodeURIComponent(currentUser.token)}`,
             {
               method: "POST",
             }
@@ -1169,7 +1178,7 @@ document.addEventListener("DOMContentLoaded", () => {
           activity
         )}/signup?email=${encodeURIComponent(
           email
-        )}&teacher_username=${encodeURIComponent(currentUser.username)}`,
+        )}&session_token=${encodeURIComponent(currentUser.token)}`,
         {
           method: "POST",
         }

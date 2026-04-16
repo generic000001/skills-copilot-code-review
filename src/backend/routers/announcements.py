@@ -2,14 +2,14 @@
 Announcement endpoints for the High School Management System API
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from ..database import announcements_collection, teachers_collection
+from ..database import announcements_collection, sessions_collection
 
 router = APIRouter(
     prefix="/announcements",
@@ -38,13 +38,17 @@ def _parse_date(value: Optional[str], field_name: str, required: bool = False) -
         )
 
 
-def _validate_signed_in_user(teacher_username: Optional[str]) -> None:
-    if not teacher_username:
+def _validate_signed_in_user(session_token: Optional[str]) -> None:
+    if not session_token:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    teacher = teachers_collection.find_one({"_id": teacher_username})
-    if not teacher:
-        raise HTTPException(status_code=401, detail="Invalid teacher credentials")
+    session = sessions_collection.find_one({"_id": session_token})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    if datetime.now(timezone.utc) > session["expires_at"].replace(tzinfo=timezone.utc):
+        sessions_collection.delete_one({"_id": session_token})
+        raise HTTPException(status_code=401, detail="Session expired")
 
 
 def _serialize_announcement(announcement: Dict[str, Any]) -> Dict[str, Any]:
@@ -80,9 +84,9 @@ def get_active_announcements() -> List[Dict[str, Any]]:
 
 
 @router.get("/manage", response_model=List[Dict[str, Any]])
-def get_all_announcements(teacher_username: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
+def get_all_announcements(session_token: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
     """Get all announcements for authenticated management."""
-    _validate_signed_in_user(teacher_username)
+    _validate_signed_in_user(session_token)
 
     announcements = [
         _serialize_announcement(announcement)
@@ -93,9 +97,9 @@ def get_all_announcements(teacher_username: Optional[str] = Query(None)) -> List
 
 
 @router.post("/manage", response_model=Dict[str, Any])
-def create_announcement(payload: AnnouncementPayload, teacher_username: Optional[str] = Query(None)) -> Dict[str, Any]:
+def create_announcement(payload: AnnouncementPayload, session_token: Optional[str] = Query(None)) -> Dict[str, Any]:
     """Create a new announcement. Expiration date is required; start date is optional."""
-    _validate_signed_in_user(teacher_username)
+    _validate_signed_in_user(session_token)
 
     message = payload.message.strip()
     if not message:
@@ -123,10 +127,10 @@ def create_announcement(payload: AnnouncementPayload, teacher_username: Optional
 def update_announcement(
     announcement_id: str,
     payload: AnnouncementPayload,
-    teacher_username: Optional[str] = Query(None)
+    session_token: Optional[str] = Query(None)
 ) -> Dict[str, Any]:
     """Update an existing announcement by id."""
-    _validate_signed_in_user(teacher_username)
+    _validate_signed_in_user(session_token)
 
     if not ObjectId.is_valid(announcement_id):
         raise HTTPException(status_code=400, detail="Invalid announcement id")
@@ -160,9 +164,9 @@ def update_announcement(
 
 
 @router.delete("/manage/{announcement_id}", response_model=Dict[str, str])
-def delete_announcement(announcement_id: str, teacher_username: Optional[str] = Query(None)) -> Dict[str, str]:
+def delete_announcement(announcement_id: str, session_token: Optional[str] = Query(None)) -> Dict[str, str]:
     """Delete an announcement by id."""
-    _validate_signed_in_user(teacher_username)
+    _validate_signed_in_user(session_token)
 
     if not ObjectId.is_valid(announcement_id):
         raise HTTPException(status_code=400, detail="Invalid announcement id")
