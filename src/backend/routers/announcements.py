@@ -2,14 +2,15 @@
 Announcement endpoints for the High School Management System API
 """
 
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from ..database import announcements_collection, sessions_collection
+from ..database import announcements_collection
+from .auth_utils import validate_session_token
 
 router = APIRouter(
     prefix="/announcements",
@@ -39,16 +40,7 @@ def _parse_date(value: Optional[str], field_name: str, required: bool = False) -
 
 
 def _validate_signed_in_user(session_token: Optional[str]) -> None:
-    if not session_token:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    session = sessions_collection.find_one({"_id": session_token})
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-
-    if datetime.now(timezone.utc) > session["expires_at"].replace(tzinfo=timezone.utc):
-        sessions_collection.delete_one({"_id": session_token})
-        raise HTTPException(status_code=401, detail="Session expired")
+    validate_session_token(session_token)
 
 
 def _serialize_announcement(announcement: Dict[str, Any]) -> Dict[str, Any]:

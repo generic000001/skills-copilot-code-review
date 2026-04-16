@@ -11,6 +11,7 @@ db = client['mergington_high']
 activities_collection = db['activities']
 teachers_collection = db['teachers']
 announcements_collection = db['announcements']
+# Stores active session tokens with teacher_username and expires_at metadata
 sessions_collection = db['sessions']
 
 # Methods

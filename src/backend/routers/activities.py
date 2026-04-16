@@ -5,9 +5,9 @@ Endpoints for the High School Management System API
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone
 
-from ..database import activities_collection, sessions_collection
+from ..database import activities_collection
+from .auth_utils import validate_session_token
 
 router = APIRouter(
     prefix="/activities",
@@ -16,20 +16,7 @@ router = APIRouter(
 
 
 def _validate_signed_in_user(session_token: Optional[str]) -> None:
-    """Verify the session token is valid and not expired."""
-    if not session_token:
-        raise HTTPException(
-            status_code=401, detail="Authentication required for this action")
-
-    session = sessions_collection.find_one({"_id": session_token})
-    if not session:
-        raise HTTPException(
-            status_code=401, detail="Invalid or expired session")
-
-    if datetime.now(timezone.utc) > session["expires_at"].replace(tzinfo=timezone.utc):
-        sessions_collection.delete_one({"_id": session_token})
-        raise HTTPException(
-            status_code=401, detail="Session expired")
+    validate_session_token(session_token, auth_required_message="Authentication required for this action")
 
 
 @router.get("", response_model=Dict[str, Any])
